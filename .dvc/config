@@ -1,0 +1,4 @@
+[core]
+    remote = storage
+['remote "storage"']
+    url = https://itcs3556688063sa.blob.core.windows.net/mylabcontainer/dvc
