@@ -51,6 +51,7 @@ class Config:
     mlflow_tracking_uri: str
     model_registry_name: str
     identity_ref: str
+    azure_storage_connection_string: str = ""
     data_dir: Path = field(default=REPO_ROOT / "data")
     reports_dir: Path = field(default=REPO_ROOT / "reports")
 
@@ -80,4 +81,5 @@ def load(strict: bool = True) -> Config:
         mlflow_tracking_uri=get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
         model_registry_name=get("MODEL_REGISTRY_NAME", "itcs355"),
         identity_ref=get("IDENTITY_REF", ""),
+        azure_storage_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING", ""),
     )
