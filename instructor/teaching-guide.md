@@ -63,7 +63,7 @@ Score the reasoning, not the speed. Prepare three fault variants so adjacent tea
 **Session 5 — Operating LLM systems and defending the bill.** Both halves now have lab material.
 The LLM half is Lab 5 Part B: an evaluation gate, guardrails, and token accounting, built on
 `scripts/llm_eval.py` and `src/llmcost.py`. Slides, lab tasks and the drill paper all exist:
-[`drills/drill-05.md`](drills/drill-05.md). Section B of that drill has to be prepared per student
+the private instructor repository. Section B of that drill has to be prepared per student
 from their submitted repository before the session — budget two minutes each.
 
 Teach Part B with `make llm-gate` on screen. It fails on purpose, and the four regressions it catches

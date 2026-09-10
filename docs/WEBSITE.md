@@ -20,7 +20,8 @@ What students get:
 | The syllabus | `course/README.md` |
 | A lab handout | `course/labs/lab-0N-*.md` |
 | The specification | `course/spec/course-specification.md` |
-| The slides | `course/slides/course-deck.md` |
+| The overview slides | `course/slides/course-deck.md` |
+| A session's teaching deck | `course/slides/session-0N.md` |
 | The code | the repository root |
 
 Set the repository description to the course code and pin `course/README.md` in the

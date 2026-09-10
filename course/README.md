@@ -98,8 +98,10 @@ course/
 │               provenance. The *_merged.xlsx is that file's seven sheets plus four
 │               course-design sheets, and is what scripts/export_spec_md.py turns into
 │               the .md that renders on GitHub.
-├── slides/     Course overview deck. course-deck.md renders here with diagrams;
-│               the .html is a styled presentation version.
+├── slides/     course-deck.md is the course overview; session-01..05.md are the
+│               teaching decks for each session. All render on GitHub and build to
+│               slides or PDF with Marp. ITCS355-course-deck.html is a separately
+│               styled rendering of the overview only.
 ├── reference/  The cloud portability contract. Read first.
 ├── getting-started-gcp.md
 ├── getting-started-azure.md

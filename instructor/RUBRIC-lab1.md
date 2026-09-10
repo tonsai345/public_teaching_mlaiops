@@ -59,8 +59,13 @@ Draw the evidence questions from each student's own submission:
 
 Concept questions cover technical debt, container layering, digest versus tag pinning, and group
 leakage. Three marks total, all CLO1 — half concepts, half evidence, in the shape set out in
-[`drills/README.md`](drills/README.md). The full Drill 1 paper is not written yet;
-[`drills/drill-05.md`](drills/drill-05.md) is the worked example to follow.
+[`drills/README.md`](drills/README.md). The paper itself is in the private instructor
+repository — this one is public, and a pre-read concept question is not a concept question.
+
+Note that the drill does **not** ask "how did you choose your tolerance", even though it is the
+obvious question. The README's guidance on tolerance is wrong — it points at the spread across
+seeds while `make reproduce` pins the seed — so the question would penalise students for
+following the handout. Fix the guidance, then ask it.
 
 ## Time budget
 

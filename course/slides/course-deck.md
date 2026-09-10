@@ -264,8 +264,8 @@ Grades: A ≥ 80 · B+ ≥ 75 · B ≥ 70 · C+ ≥ 65 · C ≥ 60 · D+ ≥ 55 
 
 | Time | Mode | What happens |
 |---|---|---|
-| 0:00–0:15 | In-class drill | Three marks on the previous session and its lab |
-| 0:15–0:35 | Debrief | Last lab's failures, shown publicly and without names |
+| 0:00–0:10 | In-class drill | Two questions, three marks, on the previous session and its lab |
+| 0:10–0:35 | Debrief | Last lab's failures, shown publicly and without names |
 | 0:35–1:15 | Concepts | Lecture, tight, carrying the day's mental model |
 | 1:15–1:30 | Break | — |
 | 1:30–2:15 | Live build | Instructor builds on screen; students follow in their own repo |
