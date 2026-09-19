@@ -1,11 +1,7 @@
-"""Training entry point.
+"""ITCS355 Lab 1 — reproducible training.
 
-Run locally:      python -m src.train --n-estimators 200 --max-depth 8
-Run in Docker:    make reproduce
-
-Every run logs: all hyperparameters, the seed, validation AND test metrics separately,
-the data fingerprint, and the Git commit. A metric that cannot be traced to code and
-data is not evidence of anything.
+Deterministic given a seed. Reads data from cfg.raw_path (local path
+or, in Lab 2, a path downloaded from BLOB_URI by the bootstrap script).
 """
 from __future__ import annotations
 
@@ -15,7 +11,6 @@ import subprocess
 from pathlib import Path
 
 import mlflow
-import mlflow.sklearn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 
@@ -23,13 +18,14 @@ from src import config, data, seeds
 
 
 def git_commit() -> str:
+    """Return the current Git commit SHA, or 'unknown' if not in a repo."""
     try:
-        out = subprocess.run(
+        result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=True, cwd=config.REPO_ROOT,
+            check=True, capture_output=True, text=True,
         )
-        return out.stdout.strip()
-    except Exception:
+        return result.stdout.strip()[:12]
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return "unknown"
 
 
@@ -38,6 +34,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-estimators", type=int, default=200)
     p.add_argument("--max-depth", type=int, default=8)
     p.add_argument("--min-samples-leaf", type=int, default=5)
+    p.add_argument("--max-features", default="sqrt",
+                   help="Features per split: 'sqrt', 'log2', or a float")
     p.add_argument("--seed", type=int, default=seeds.DEFAULT_SEED)
     p.add_argument("--experiment", default="itcs355-lab1")
     p.add_argument("--run-name", default=None)
@@ -63,10 +61,10 @@ def main() -> None:
             "n_estimators": args.n_estimators,
             "max_depth": args.max_depth,
             "min_samples_leaf": args.min_samples_leaf,
+            "max_features": args.max_features,
             "seed": seed,
             "n_features": len(data.FEATURES),
         })
-        # Provenance. This is what makes the metric traceable.
         mlflow.set_tags({
             "git_commit": git_commit(),
             "data_fingerprint": fingerprint,
@@ -80,24 +78,48 @@ def main() -> None:
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
             min_samples_leaf=args.min_samples_leaf,
-            random_state=seed,
+            max_features=args.max_features,
             n_jobs=-1,
+            random_state=seed,
         )
-        model.fit(train_df[data.FEATURES], train_df[data.TARGET])
+        X_tr = train_df[data.FEATURES]
+        y_tr = train_df[data.TARGET]
+        X_val = val_df[data.FEATURES]
+        y_val = val_df[data.TARGET]
+        X_test = test_df[data.FEATURES]
+        y_test = test_df[data.TARGET]
 
-        metrics: dict[str, float] = {}
-        for name, part in (("val", val_df), ("test", test_df)):
-            proba = model.predict_proba(part[data.FEATURES])[:, 1]
-            metrics[f"{name}_roc_auc"] = float(roc_auc_score(part[data.TARGET], proba))
-            metrics[f"{name}_pr_auc"] = float(average_precision_score(part[data.TARGET], proba))
-        mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(model, name="model")
+        model.fit(X_tr, y_tr)
+        val_pred = model.predict_proba(X_val)[:, 1]
+        test_pred = model.predict_proba(X_test)[:, 1]
 
-        print(json.dumps({"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+        val_roc = roc_auc_score(y_val, val_pred)
+        test_roc = roc_auc_score(y_test, test_pred)
+        val_pr = average_precision_score(y_val, val_pred)
+        test_pr = average_precision_score(y_test, test_pred)
+
+        mlflow.log_metrics({
+            "val_roc_auc": val_roc,
+            "test_roc_auc": test_roc,
+            "val_pr_auc": val_pr,
+            "test_pr_auc": test_pr,
+        })
+
+        mlflow.sklearn.log_model(model, artifact_path="model")
+
+        metrics = {
+            "seed": seed,
+            "data_fingerprint": fingerprint,
+            "val_roc_auc": val_roc,
+            "val_pr_auc": val_pr,
+            "test_roc_auc": test_roc,
+            "test_pr_auc": test_pr,
+        }
         if args.metrics_out:
+            args.metrics_out = Path(args.metrics_out)
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
-            args.metrics_out.write_text(json.dumps(
-                {"seed": seed, "data_fingerprint": fingerprint, **metrics}, indent=2))
+            args.metrics_out.write_text(json.dumps(metrics, indent=2))
+        print(json.dumps(metrics, indent=2))
 
 
 if __name__ == "__main__":

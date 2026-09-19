@@ -6,6 +6,7 @@ IMAGE ?= itcs355-lab1
 TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 PLATFORM ?= linux/amd64
 SEED ?= 20260101
+MODEL_REGISTRY_NAME ?= itcs355-6688063
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
         tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
@@ -63,6 +64,18 @@ clean: ## Remove local artifacts
 # --- Lab 2 -------------------------------------------------------------------
 tune: ## Budgeted hyperparameter study (>=12 trials)
 	python -m src.tune --trials 12 --budget-thb 150
+
+register: ## Register the chosen model in Azure ML with lineage
+	python scripts/register_model.py --name $(MODEL_REGISTRY_NAME) --stage Staging
+
+train-remote: image-push ## Submit training as an Azure ML managed job
+	python -c "from src import config; from cloudlayer.factory import get_adapter; \
+	cfg = config.load(); adapter = get_adapter(cfg); \
+	image_uri = cfg.container_registry + ':latest'; \
+	job_id = adapter.submit_training(image_uri, {'seed': $(SEED), 'n_estimators': 100, 'max_depth': 6, 'metrics_out': '/tmp/metrics.json', 'run_name': 'remote-$(SEED)'}); \
+	print('submitted job:', job_id); \
+	result = adapter.wait_training(job_id); \
+	print('final status:', result)"
 
 compare: ## Rank runs by metric and by cost per point
 	python scripts/compare_runs.py --experiment itcs355-lab2

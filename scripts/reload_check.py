@@ -1,6 +1,6 @@
 """Lab 2 — prove the registered model can be reloaded by version, from the registry.
 
-    python scripts/reload_check.py --name itcs355-<studentid> --version 3
+    python scripts/reload_check.py --name itcs355-6688063 --version 1
 
 This is the lab's quiet test. Models that cannot be reloaded six months later are the
 commonest form of dead work in industry, and the cause is nearly always a serialization
@@ -17,9 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import mlflow
-
 from src import config, data
+
+
+AZURE_SUBSCRIPTION_ID = "ce0c4612-4e67-4c7b-b2e6-0a2198ad93b3"
+AZURE_RESOURCE_GROUP = "itcs355-6688063-rg"
+AZURE_WORKSPACE = "itcs355-workspace"
 
 
 def main() -> int:
@@ -29,21 +32,50 @@ def main() -> int:
     ap.add_argument("--rows", type=int, default=5)
     args = ap.parse_args()
 
+    from azure.ai.ml import MLClient
+    from azure.identity import DefaultAzureCredential
+
+    ml_client = MLClient(
+        DefaultAzureCredential(),
+        AZURE_SUBSCRIPTION_ID,
+        AZURE_RESOURCE_GROUP,
+        AZURE_WORKSPACE,
+    )
+
+    print(f"downloading {args.name}:{args.version} from registry")
+    download_path = Path("reports/_reload")
+    download_path.mkdir(parents=True, exist_ok=True)
+
+    ml_client.models.download(
+        name=args.name,
+        version=args.version,
+        download_path=str(download_path),
+    )
+
+    # Azure ML downloads a directory containing the model file
+    model_files = list(download_path.rglob("*.joblib"))
+    if not model_files:
+        print("ERROR: no .joblib file found in downloaded model")
+        return 1
+    model_file = model_files[0]
+    print(f"model file: {model_file}")
+
+    import joblib
+    model = joblib.load(model_file)
+
     cfg = config.load(strict=False)
-    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
-
-    uri = f"models:/{args.name}/{args.version}"
-    print(f"loading {uri}")
-    model = mlflow.sklearn.load_model(uri)
-
     df = data.load_raw(cfg.raw_path)
     _, _, test_df = data.split(df, seed=20260101)
-    sample = test_df.head(args.rows)
-    preds = model.predict_proba(sample[data.FEATURES])[:, 1]
+    sample = test_df[data.FEATURES].head(args.rows)
 
-    for rid, p in zip(sample[data.ID], preds):
-        print(f"  reading {rid}: p(failure)={p:.4f}")
-    print("\nPASS  model reloaded from the registry and scored rows")
+    predictions = model.predict(sample)
+    probabilities = model.predict_proba(sample)[:, 1]
+
+    print(f"\nScored {args.rows} rows from the test set:")
+    for i, (pred, prob) in enumerate(zip(predictions, probabilities)):
+        print(f"  row {i+1}: prediction={pred}  probability={prob:.4f}")
+
+    print("\nReload check PASSED — model loaded from the registry and scored rows.")
     return 0
 
 

@@ -38,7 +38,13 @@ class CloudAdapter(ABC):
         which must be digest-pinned (repo@sha256:...), not tag-pinned."""
 
     # --- Lab 2 ---------------------------------------------------------------
-    def submit_training(self, image_uri: str, args: dict[str, Any]) -> str:
+    def submit_training(self, image_uri: str, args: dict[str, Any],
+                        instance: str | None = None, spot: bool = False) -> str:
+        """Submit a training job. Returns a job id.
+
+        `instance` is a provider-specific instance type; None means "use the default".
+        `spot=True` requests discounted compute (spot / low-priority / preemptible).
+        """
         raise NotImplementedError("Lab 2")
 
     def wait_training(self, job_id: str) -> dict[str, Any]:
