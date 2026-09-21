@@ -20,7 +20,12 @@ export const options = {
   thresholds: {
     // TODO(Lab 3): set YOUR p95 target here, BEFORE you measure.
     // A target chosen after seeing the numbers is not a target, and this is graded.
-    'predict_latency_ms': ['p(95)<200'],
+    // Latency target: p95 < 500ms at 10 VUs. Stated before measuring.
+    // Rationale: 0.5 vCPU container, sklearn RandomForest inference is sub-100ms
+    // warm; 500ms gives headroom for network + scale-from-zero transient.
+    'predict_latency_ms': ['p(95)<500'],
+    'predict_failures': ['rate<0.01'],
+    'predict_latency_ms': ['p(95)<500'],
     'predict_failures': ['rate<0.01'],
   },
 };
