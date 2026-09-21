@@ -1,13 +1,14 @@
 # ITCS355 Lab 3 — serving image
 #
-# TODO(Lab 3): pin by digest, as you did for the training image in Lab 1.
-FROM python:3.11-slim AS builder
+# Base image pinned by digest (Lab 1 Task 2 rule applied to the serving image):
+#   python@sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9
+FROM python@sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9 AS builder
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /build
 COPY requirements-serve.txt ./
 RUN pip install --prefix=/install -r requirements-serve.txt
 
-FROM python:3.11-slim AS runtime
+FROM python@sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9 AS runtime
 RUN useradd --create-home --uid 10001 runner
 ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app
 COPY --from=builder /install /usr/local
@@ -18,10 +19,9 @@ COPY --chown=runner:runner cloudlayer/ ./cloudlayer/
 USER runner
 
 EXPOSE 8080
-# TODO(Lab 3): your provider expects specific health and predict paths.
-#   AWS SageMaker  -> /ping and /invocations
-#   Azure ML       -> configurable liveness route on the deployment
-#   Vertex AI      -> health and predict routes declared on the Model resource
-# Absorb the difference in cloudlayer/, or map the paths here. Do NOT rename the routes
-# in service/app.py — that is what makes the image non-portable.
+# Provider route mapping (Container Apps path — Lab 3 on Azure for Students):
+#   Container Apps doesn't mandate specific health/predict paths; the service's
+#   own /health, /ready, /predict, /predict/batch are used directly. For
+#   SageMaker the adapter would map /ping and /invocations; for Vertex it would
+#   declare routes on the Model resource. This image stays portable.
 CMD ["uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2"]

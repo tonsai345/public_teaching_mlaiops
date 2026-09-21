@@ -1,15 +1,20 @@
-"""Azure adapter. Lab 1 (upload/download/push_image) + Lab 2 (jobs + registry).
+"""Azure adapter. Lab 1 (upload/download/push_image) + Lab 2 (jobs + registry)
++ Lab 3 (Container Apps serving on the Azure for Students tier).
 
 SDK:  pip install azure-storage-blob azure-identity azure-ai-ml
 Docs: BlobServiceClient for storage; ACR push goes through `docker push`
-      after `az acr login`; Lab 2 jobs go through azure-ai-ml.
+      after `az acr login`; Lab 2 jobs go through azure-ai-ml. Lab 3 serving
+      goes to Container Apps (no Azure ML core quota requirement).
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 from typing import Any
+from urllib import request as urlrequest
+from urllib.error import URLError
 
 from cloudlayer.base import CloudAdapter
 
@@ -20,6 +25,13 @@ AZURE_RESOURCE_GROUP = "itcs355-6688063-rg"
 AZURE_WORKSPACE = "itcs355-workspace"
 AZURE_COMPUTE = "cpu-cluster"
 AZURE_EXPERIMENT = "itcs355-lab2"
+
+
+# --- Container Apps constants for Lab 3 ---------------------------------------
+CA_LOCATION = "koreacentral"
+CA_ENVIRONMENT = "itcs355-env"
+CA_APP_PREFIX = "itcs355-serve"
+CA_RESOURCE_GROUP = AZURE_RESOURCE_GROUP
 
 
 class AzureAdapter(CloudAdapter):
@@ -139,12 +151,7 @@ class AzureAdapter(CloudAdapter):
 
     def submit_training(self, image_uri: str, args: dict[str, Any],
                         instance: str | None = None, spot: bool = False) -> str:
-        """Submit a training job to Azure ML as a command job.
-
-        Runs on cpu-cluster (on-demand). Spot and serverless are blocked
-        by quota on this Azure for Students subscription; the cost model
-        in src/costs.py applies the spot factor to reflect production pricing.
-        """
+        """Submit a training job to Azure ML as a command job."""
         from azure.ai.ml import command
         from azure.ai.ml.entities import Environment, UserIdentityConfiguration
 
@@ -215,10 +222,7 @@ class AzureAdapter(CloudAdapter):
     def register_model(self, model_uri: str, name: str,
                        lineage: dict[str, str] | None = None,
                        stage: str = "Staging") -> str:
-        """Register a model in Azure ML with full lineage.
-
-        Returns the version string (e.g. "1").
-        """
+        """Register a model in Azure ML with full lineage."""
         from azure.ai.ml.entities import Model
         from azure.ai.ml.constants import AssetTypes
 
@@ -237,6 +241,101 @@ class AzureAdapter(CloudAdapter):
 
         registered = ml_client.models.create_or_update(model)
         return str(registered.version)
+
+    # --- Lab 3 ---------------------------------------------------------------
+    def deploy(self, model_ref: str, endpoint: str, instance: str) -> str:
+        """Deploy the serving image to Azure Container Apps.
+
+        `model_ref` is a "name:version" string identifying the registered model.
+        `endpoint` is the Container App name (must be globally unique DNS label).
+        `instance` is unused on Container Apps; accepted for signature parity.
+
+        Returns the public FQDN of the deployed app.
+        """
+        cfg = self.cfg
+        acr_login_server = cfg.container_registry.split("/")[0]
+        image = f"{acr_login_server}/itcs355-serve:latest"
+
+        # 1. Ensure the Container Apps environment exists
+        self._ensure_environment()
+
+        # 2. Deploy the app
+        env_vars = {
+            "MODEL_REGISTRY_NAME": model_ref.split(":")[0],
+            "MODEL_VERSION": model_ref.split(":")[1],
+            "AZURE_STORAGE_CONNECTION_STRING": cfg.azure_storage_connection_string,
+        }
+        env_arg = " ".join(f"{k}={v}" for k, v in env_vars.items())
+
+        subprocess.run(
+            ["az", "containerapp", "create",
+             "--name", endpoint,
+             "--resource-group", CA_RESOURCE_GROUP,
+             "--environment", CA_ENVIRONMENT,
+             "--image", image,
+             "--target-port", "8080",
+             "--ingress", "external",
+             "--min-replicas", "0",
+             "--max-replicas", "3",
+             "--cpu", "0.5",
+             "--memory", "1.0Gi",
+             "--registry-server", acr_login_server,
+             "--env-vars", *[f"{k}={v}" for k, v in env_vars.items()]],
+            check=True, capture_output=True, text=True,
+        )
+
+        # 3. Get the FQDN
+        fqdn_result = subprocess.run(
+            ["az", "containerapp", "show",
+             "--name", endpoint,
+             "--resource-group", CA_RESOURCE_GROUP,
+             "--query", "properties.configuration.ingress.fqdn",
+             "-o", "tsv"],
+            check=True, capture_output=True, text=True,
+        )
+        return fqdn_result.stdout.strip()
+
+    def invoke(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST a payload to the deployed endpoint's /predict route.
+
+        `endpoint` is either an FQDN (from deploy) or a full URL.
+        """
+        if endpoint.startswith("http"):
+            url = endpoint
+        else:
+            url = f"https://{endpoint}/predict"
+
+        data = json.dumps(payload).encode("utf-8")
+        req = urlrequest.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except URLError as e:
+            raise RuntimeError(f"invoke failed: {e}") from e
+
+    def _ensure_environment(self) -> None:
+        """Create the Container Apps environment if it doesn't exist."""
+        result = subprocess.run(
+            ["az", "containerapp", "env", "show",
+             "--name", CA_ENVIRONMENT,
+             "--resource-group", CA_RESOURCE_GROUP],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return
+
+        subprocess.run(
+            ["az", "containerapp", "env", "create",
+             "--name", CA_ENVIRONMENT,
+             "--resource-group", CA_RESOURCE_GROUP,
+             "--location", CA_LOCATION],
+            check=True, capture_output=True, text=True,
+        )
 
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
     # deploy / invoke                   -> Lab 3. On Azure for Students, deploy to

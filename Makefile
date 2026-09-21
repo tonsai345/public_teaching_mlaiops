@@ -7,9 +7,10 @@ TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 PLATFORM ?= linux/amd64
 SEED ?= 20260101
 MODEL_REGISTRY_NAME ?= itcs355-6688063
+VERSION ?= 2
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
-        tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
+        tune compare reload-check deploy smoke serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate register train-remote
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## .*$$" $(MAKEFILE_LIST) | awk -F":.*?## " "{printf \"  %-20s %s\\n\", \$$1, \$$2}"
@@ -44,10 +45,10 @@ image-push: image ## Push to CONTAINER_REGISTRY via your adapter
 reproduce: data image ## THE ONE COMMAND. Grader runs this.
 	mkdir -p reports mlruns
 	docker run --rm \
-          --user $(shell id -u) \
+	  --user $(shell id -u) \
 	  -v "$$PWD/data:/app/data:ro" \
 	  -v "$$PWD/reports:/app/reports" \
-          -v "$$PWD/mlruns:/app/mlruns" \
+	  -v "$$PWD/mlruns:/app/mlruns" \
 	  -e MLFLOW_TRACKING_URI=sqlite:////app/reports/mlflow.db \
 	  $(IMAGE):$(TAG) --seed $(SEED) --metrics-out /app/reports/metrics.json
 
@@ -65,9 +66,6 @@ clean: ## Remove local artifacts
 tune: ## Budgeted hyperparameter study (>=12 trials)
 	python -m src.tune --trials 12 --budget-thb 150
 
-register: ## Register the chosen model in Azure ML with lineage
-	python scripts/register_model.py --name $(MODEL_REGISTRY_NAME) --stage Staging
-
 train-remote: image-push ## Submit training as an Azure ML managed job
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \
 	cfg = config.load(); adapter = get_adapter(cfg); \
@@ -83,6 +81,9 @@ compare: ## Rank runs by metric and by cost per point
 reload-check: ## Load the registered model by version and score rows
 	python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)
 
+register: ## Register the chosen model in Azure ML with lineage
+	python scripts/register_model.py --name $(MODEL_REGISTRY_NAME) --stage Staging
+
 # --- Lab 3 -------------------------------------------------------------------
 serve: ## Run the inference service locally on :8080
 	python scripts/export_model.py --out reports/model.joblib
@@ -90,6 +91,14 @@ serve: ## Run the inference service locally on :8080
 
 serve-image: ## Build the serving image
 	docker buildx build --platform $(PLATFORM) -f service/Dockerfile.serve -t itcs355-serve:$(TAG) --load .
+
+deploy: serve-image ## Deploy the serving image to Container Apps
+	docker tag itcs355-serve:$(TAG) $(shell python -c "from src import config; print(config.load().container_registry.split('/')[0])")/itcs355-serve:latest
+	docker push $(shell python -c "from src import config; print(config.load().container_registry.split('/')[0])")/itcs355-serve:latest
+	python scripts/deploy.py --model $(MODEL_REGISTRY_NAME):$(VERSION) --endpoint itcs355-serve
+
+smoke: ## Invoke the deployed endpoint with three known payloads
+	python scripts/deploy.py --smoke-only --endpoint itcs355-serve
 
 loadtest: ## Load test at three concurrency levels
 	@for vus in 1 10 50; do \

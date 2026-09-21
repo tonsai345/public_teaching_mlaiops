@@ -76,7 +76,9 @@ The 0.5 vCPU container is CPU-bound at 10 VUs.
 **Verdict:** if the p95 target is tight (< 200ms), the larger instance is
 worth it. If the target is loose (< 500ms), 0.5 vCPU meets it and is 2× cheaper.
 
-## Cost per 1,000 predictions (see Task 5)
+## Cost per 1,000 predictions
+
+See `reports/lab3-cost.md` for the full derivation.
 
 ## Raw output
 
