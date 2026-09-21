@@ -82,44 +82,39 @@ def main() -> None:
             n_jobs=-1,
             random_state=seed,
         )
-        X_tr = train_df[data.FEATURES]
-        y_tr = train_df[data.TARGET]
-        X_val = val_df[data.FEATURES]
-        y_val = val_df[data.TARGET]
-        X_test = test_df[data.FEATURES]
-        y_test = test_df[data.TARGET]
+        model.fit(train_df[data.FEATURES], train_df[data.TARGET])
 
-        model.fit(X_tr, y_tr)
-        val_pred = model.predict_proba(X_val)[:, 1]
-        test_pred = model.predict_proba(X_test)[:, 1]
+        metrics: dict[str, float] = {}
+        for name, part in (("val", val_df), ("test", test_df)):
+            proba = model.predict_proba(part[data.FEATURES])[:, 1]
+            metrics[f"{name}_roc_auc"] = float(roc_auc_score(part[data.TARGET], proba))
+            metrics[f"{name}_pr_auc"] = float(average_precision_score(part[data.TARGET], proba))
+        mlflow.log_metrics(metrics)
 
-        val_roc = roc_auc_score(y_val, val_pred)
-        test_roc = roc_auc_score(y_test, test_pred)
-        val_pr = average_precision_score(y_val, val_pred)
-        test_pr = average_precision_score(y_test, test_pred)
+        # skops 0.15 refuses to serialise sklearn tree models unless the caller names
+        # the types it trusts. sklearn.tree._tree.Tree stores raw node indices that
+        # scikit-learn indexes without bounds checking, so a malicious file can segfault
+        # the process on .predict(). We built this model in this process from our own
+        # data, so trusting it here is a statement about provenance, not a bypass — and
+        # it is scoped to the one type rather than everything skops reports.
+        mlflow.sklearn.log_model(
+            model, artifact_path="model",
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
+        )
 
-        mlflow.log_metrics({
-            "val_roc_auc": val_roc,
-            "test_roc_auc": test_roc,
-            "val_pr_auc": val_pr,
-            "test_pr_auc": test_pr,
-        })
-
-        mlflow.sklearn.log_model(model, artifact_path="model")
-
-        metrics = {
+        out_metrics = {
             "seed": seed,
             "data_fingerprint": fingerprint,
-            "val_roc_auc": val_roc,
-            "val_pr_auc": val_pr,
-            "test_roc_auc": test_roc,
-            "test_pr_auc": test_pr,
+            "val_roc_auc": metrics["val_roc_auc"],
+            "val_pr_auc": metrics["val_pr_auc"],
+            "test_roc_auc": metrics["test_roc_auc"],
+            "test_pr_auc": metrics["test_pr_auc"],
         }
         if args.metrics_out:
             args.metrics_out = Path(args.metrics_out)
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
-            args.metrics_out.write_text(json.dumps(metrics, indent=2))
-        print(json.dumps(metrics, indent=2))
+            args.metrics_out.write_text(json.dumps(out_metrics, indent=2))
+        print(json.dumps(out_metrics, indent=2))
 
 
 if __name__ == "__main__":

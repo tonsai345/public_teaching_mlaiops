@@ -238,7 +238,15 @@ class AzureAdapter(CloudAdapter):
         registered = ml_client.models.create_or_update(model)
         return str(registered.version)
 
-    # deploy / invoke  -> Lab 3 (managed online endpoint + deployment)
-    # emit_metric      -> Lab 4 (Azure Monitor custom metric)
-    # generate         -> Lab 5 (managed LLM endpoint)
-    # teardown         -> Lab 5 (resource graph query by tag)
+    # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
+    # deploy / invoke                   -> Lab 3. On Azure for Students, deploy to
+    #                                      Container Apps, NOT an Azure ML managed
+    #                                      online endpoint: those need
+    #                                      ceil(1.2 x instances) x cores of quota, so
+    #                                      one Standard_DS3_v2 asks for 8 vCPU against
+    #                                      a student cap of about 3, and the cap cannot
+    #                                      be raised. Container Apps has no Azure ML
+    #                                      core quota and scales to zero.
+    # emit_metric                       -> Lab 4 (Azure Monitor custom metric)
+    # generate                          -> Lab 5 (managed LLM endpoint; read the usage block for tokens)
+    # teardown                          -> Lab 5 (resource graph query by tag)

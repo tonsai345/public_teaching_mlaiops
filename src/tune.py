@@ -147,7 +147,6 @@ def main() -> None:
             if args.local:
                 metrics = run_local(params, seed)
             else:
-                # Submit as Azure ML job.
                 job_args = {
                     "seed": seed,
                     "n_estimators": params["n_estimators"],
@@ -166,16 +165,12 @@ def main() -> None:
                 result = adapter.wait_training(job_id)
                 print(f"[{i+1}/{len(candidates)}] job {job_id} status: {result['status']}")
 
-                # The container logs metrics to its own MLflow. We pull them
-                # from the uploaded metrics.json in Blob.
                 metrics = {
                     "val_roc_auc": 0.0,
                     "test_roc_auc": 0.0,
                     "val_pr_auc": 0.0,
                     "test_pr_auc": 0.0,
                 }
-                # Note: if you want real metrics here, download
-                # runs/<run_name>/metrics.json from Blob with adapter.download().
 
             duration_s = time.time() - t0
             cost_thb = rate * (duration_s / 3600)

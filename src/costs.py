@@ -20,6 +20,17 @@ PRICE_TABLE: dict[str, dict[str, float]] = {
         "ml.g4dn.xlarge": 26.0,
     },
     "azure": {
+        # Azure for Students caps regional vCPU at 3-4 and QUOTA INCREASES ARE REFUSED.
+        # These two fit inside that ceiling; use them unless you are on Pay-As-You-Go.
+        # USD list price x 36 THB/USD, checked 2026-09-21 — verify for your own region.
+        "Standard_B1s": 0.37,             # 1 vCPU, 1 GiB  — $0.0104/hr
+        "Standard_B2s": 1.50,             # 2 vCPU, 4 GiB  — $0.0416/hr
+        # The three below are 4 vCPU each and DO NOT FIT a student subscription. An
+        # Azure ML managed online endpoint needs ceil(1.2 x instances) x cores, so one
+        # Standard_DS3_v2 instance asks for 8 vCPU against a cap of 3. The GPU SKU is
+        # worse: specialised families start at zero cores and cannot be raised either.
+        # Left here because they are the right answer on Pay-As-You-Go, and because
+        # Lab 5 asks you to compare what you can run against what you would choose.
         "Standard_DS3_v2": 8.1,
         "Standard_F4s_v2": 6.9,
         "Standard_NC4as_T4_v3": 24.5,
