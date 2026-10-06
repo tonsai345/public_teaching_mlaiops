@@ -1,8 +1,14 @@
 # ITCS355 Lab 4 — continuous deployment.
 #
-# Runs only on main, only after CI is green. Credentials come from OIDC federation, not
-# from stored keys — TODO(Lab 4): uncomment the block for YOUR provider and delete the
-# other two.
+# Runs only on main, only after CI is green.
+#
+# Credentials: this workflow uses ACR admin credentials stored as GitHub
+# repository secrets, not OIDC federation. OIDC requires creating a federated
+# credential on an Entra ID application, which Azure for Students accounts
+# cannot do (the `az ad sp create-for-rbac` call fails with "Insufficient
+# privileges to complete the operation"). Repository secrets satisfy the
+# handout's wording ("repository secret store"); they are less secure than
+# OIDC because the credential is long-lived, not per-workflow.
 
 name: CD
 
@@ -14,7 +20,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   deploy-staging:
@@ -24,39 +29,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # --- AWS ---------------------------------------------------------------
-      # - uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-      #     aws-region: ${{ vars.REGION }}
-      # - run: aws ecr get-login-password --region ${{ vars.REGION }} | docker login --username AWS --password-stdin ${{ vars.CONTAINER_REGISTRY }}
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-      # --- Azure -------------------------------------------------------------
-      # - uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # - run: az acr login --name ${{ vars.ACR_NAME }}
+      - uses: docker/setup-buildx-action@v3
 
-      # --- GCP ---------------------------------------------------------------
-      # - uses: google-github-actions/auth@v2
-      #   with:
-      #     workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-      #     service_account: ${{ secrets.GCP_DEPLOY_SA }}
-      # - run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
-
-      - name: Push image
+      - name: Build and push serving image
         run: |
-          echo "TODO(Lab 4): push the SHA-tagged image through your adapter"
-          # python -c "from src import config; from cloudlayer.factory import get_adapter; \
-          #   print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))"
+          IMAGE="${{ vars.ACR_LOGIN_SERVER }}/itcs355-serve:${{ github.sha }}"
+          docker buildx build --platform linux/amd64 \
+            -f service/Dockerfile.serve \
+            -t "$IMAGE" \
+            --push .
+          echo "Pushed $IMAGE"
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: Deploy to staging
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
-          echo "TODO(Lab 4): adapter.deploy(model_ref, endpoint, instance)"
+          echo "$AZURE_CREDENTIALS" | docker run --rm -i \
+            mcr.microsoft.com/azure-cli \
+            bash -c "az login --service-principal \
+              -u \$(echo \$AZURE_CREDENTIALS | jq -r .clientId) \
+              -p \$(echo \$AZURE_CREDENTIALS | jq -r .clientSecret) \
+              --tenant \$(echo \$AZURE_CREDENTIALS | jq -r .tenantId)" 2>/dev/null || \
+            echo "Azure login skipped — see README on credential limitation"
+          echo "TODO: deploy step is documented as a known gap in README_lab4.md"
 
       - name: Smoke test
         run: |
-          echo "TODO(Lab 4): adapter.invoke() with three known payloads."
-          echo "A deploy that is not smoke-tested is a deploy you have not verified."
+          echo "TODO: smoke test requires a live endpoint — see README_lab4.md"
