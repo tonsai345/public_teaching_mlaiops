@@ -30,37 +30,27 @@ STATE: dict[str, Any] = {"model": None, "version": os.environ.get("MODEL_VERSION
 
 
 def _load_model_from_blob():
-    """Download the model artifact from Blob Storage and load it with joblib.
+    """Download the model artifact via the adapter, then load it with joblib.
 
-    This path avoids needing Azure ML registry auth from inside the container
-    (which requires either a managed identity or a service principal — neither
-    is available on the express Container Apps tier).
+    Uses the adapter so no provider SDK is imported outside cloudlayer/.
+    The portability audit forbids direct SDK imports in service/.
     """
-    import os
     from pathlib import Path
-    from urllib.parse import urlparse
 
     import joblib
-    from azure.storage.blob import BlobServiceClient
 
-    blob_path = os.environ["MODEL_BLOB_PATH"]  # full https://... URL
-    conn_str = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
+    from src import config
+    from cloudlayer.factory import get_adapter
 
-    parsed = urlparse(blob_path)
-    path_parts = parsed.path.lstrip("/").split("/", 1)
-    container_name = path_parts[0]
-    blob_name = path_parts[1] if len(path_parts) > 1 else path_parts[0]
-
+    blob_path = os.environ["MODEL_BLOB_PATH"]
     local_path = Path("/tmp/model.joblib")
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    client = BlobServiceClient.from_connection_string(conn_str)
-    container_client = client.get_container_client(container_name)
+    cfg = config.load(strict=False)
+    adapter = get_adapter(cfg)
     log.info('"downloading model from %s"', blob_path)
-    with open(local_path, "wb") as f:
-        data = container_client.download_blob(blob_name).readall()
-        f.write(data)
-    log.info('"downloaded %d bytes"', len(data))
+    adapter.download(blob_path, str(local_path))
+    log.info('"model downloaded to %s"', local_path)
 
     return joblib.load(local_path)
 
