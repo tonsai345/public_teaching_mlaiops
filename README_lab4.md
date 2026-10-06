@@ -254,3 +254,29 @@ The SLO's freshness objective (Task 4) is the backstop for that case.
 - **First successful alert:** https://github.com/tonsai345/public_teaching_mlaiops/issues/2
 - **Run:** https://github.com/tonsai345/public_teaching_mlaiops/actions/runs/37508045971
 - **Metric output:** `reports/metrics.jsonl` (JSONL, one record per metric)
+
+
+## Teardown
+
+`make teardown` is a Lab 5 deliverable — `adapter.teardown()` is not yet
+implemented. Manual teardown was performed:
+
+- Container Apps: none running (deleted at end of Lab 3)
+- Azure ML compute: `cpu-cluster` only (retained for Lab 5)
+- ACR: images remain, billed at ~0 THB/month on the Basic tier's free 10 GB
+- Blob: `mylabcontainer` remains, ~1 GB, ~0.02 THB/month
+
+### Scheduled workflows
+
+Only `.github/workflows/drift.yml` has a cron schedule (daily 02:00 UTC). It
+does not call the deployed endpoint — it runs the drift detector entirely
+inside the GitHub Actions runner. No deleted endpoint is invoked by the
+schedule, so it is safe to leave enabled.
+
+The other two workflows (`ci.yml`, `cd.yml`) trigger on push and pull request
+only, with no schedule.
+
+### Cost
+
+Total spend for Lab 4: **0 THB**. No new billable resources were created.
+The workflow runs are within GitHub's free minutes for public repositories.
