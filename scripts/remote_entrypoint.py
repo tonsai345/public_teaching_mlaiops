@@ -39,7 +39,6 @@ def main() -> None:
     # Parse BLOB_URI: https://account.blob.core.windows.net/container
     rest = blob_uri.replace("https://", "")
     parts = rest.split("/")
-    account_name = parts[0].split(".")[0]
     container_name = parts[1]
 
     client = BlobServiceClient.from_connection_string(conn_str)
