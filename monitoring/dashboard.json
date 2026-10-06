@@ -4,10 +4,13 @@
   "refresh": "30s",
   "panels": [
     {"id": 1, "title": "Request rate", "type": "timeseries", "unit": "reqps",
-     "target": "sum(rate(http_requests_total[1m]))"},
+     "target": "sum(rate(http_requests_total[1m]))",
+     "_note": "Baseline for interpreting every other panel. A change in rate changes what the other numbers mean — a spike in latency during a traffic spike is different from a spike with steady traffic."},
+
     {"id": 2, "title": "Error rate by class", "type": "timeseries", "unit": "percentunit",
      "target": "sum by (status_class) (rate(http_requests_total{status_class=~\"4xx|5xx\"}[5m])) / sum(rate(http_requests_total[5m]))",
      "_note": "4xx and 5xx must be split. 4xx is usually a caller problem; 5xx is yours."},
+
     {"id": 3, "title": "Latency p50 / p95 / p99", "type": "timeseries", "unit": "ms",
      "targets": [
        "histogram_quantile(0.50, sum by (le) (rate(request_latency_ms_bucket[5m])))",
@@ -15,11 +18,39 @@
        "histogram_quantile(0.99, sum by (le) (rate(request_latency_ms_bucket[5m])))"
      ],
      "_note": "If p99 is far above p95 in a repeating pattern, suspect cold start or a per-request model load."},
+
     {"id": 4, "title": "Feature drift (PSI, rolling)", "type": "timeseries",
-     "target": "drift_psi",
-     "_note": "TODO(Lab 4): at least one feature-distribution statistic is required. Emit it from monitoring/drift.py via adapter.emit_metric."},
+     "targets": [
+       "drift_psi{feature=\"temp_c\"}",
+       "drift_psi{feature=\"vibration_mm_s\"}",
+       "drift_psi{feature=\"pressure_kpa\"}",
+       "drift_psi{feature=\"hours_since_service\"}",
+       "drift_psi{feature=\"load_pct\"}",
+       "drift_psi{feature=\"ambient_humidity\"}"
+     ],
+     "_note": "PSI per feature, emitted from monitoring/drift.py via adapter.emit_metric(). Threshold lines: 0.10 (stable), 0.25 (significant). The panel alerts on drift_psi{feature=~\".+\"} > 0.25 for 1h."},
+
     {"id": 5, "title": "Model version in production", "type": "stat",
      "target": "model_version_info",
-     "_note": "During a canary you should see two. If you see two when you are not deploying, something is wrong."}
-  ]
+     "_note": "During a canary you should see two. If you see two when you are not deploying, something is wrong."},
+
+    {"id": 6, "title": "Drift alert history", "type": "table",
+     "target": "increase(drift_alerts_total[24h])",
+     "_note": "How many drift alerts fired in the last 24h, by feature. A row of zeros is the healthy default; a sudden count is the signal to look at panel 4."}
+  ],
+  "alerting": {
+    "_comment": "Panel 4 thresholds trigger an alert when any feature's PSI exceeds 0.25 for 5 minutes.",
+    "rules": [
+      {
+        "name": "Feature drift above threshold",
+        "expr": "drift_psi > 0.25",
+        "for": "5m",
+        "severity": "warning",
+        "annotations": {
+          "summary": "Feature {{ $labels.feature }} drifted (PSI {{ $value }})",
+          "runbook": "Before retraining, check whether the schema or null rate changed first — that indicates an upstream pipeline break, not data drift. See docs/postmortem-template.md."
+        }
+      }
+    ]
+  }
 }

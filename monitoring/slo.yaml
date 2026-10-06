@@ -2,31 +2,53 @@
 #
 # Most students write a target and stop. The third field is where the thinking is: an SLO
 # without a stated response to exhaustion is a wish, not an objective.
+#
+# These targets are drawn from the Lab 3 measurements:
+#   - At 10 VUs on 1.0 vCPU / 2 GB, p95 = 164 ms (target 200 ms has margin)
+#   - At 10 VUs on 0.5 vCPU / 1 GB, p95 = 331 ms (target 500 ms has margin)
+#   - The k6 target in loadtest/k6.js is p(95) < 500 ms
+# We choose the 500 ms target so the SLO covers the smaller instance, and note
+# that the 1.0 vCPU config is the headroom option.
 
 service: itcs355-predict
 
 objectives:
   - name: availability
-    target: 0.995              # TODO(Lab 4): your number, and defend it
+    target: 0.995
     window: 30d
     measurement: "successful responses / total responses, excluding 4xx"
     on_budget_exhausted: |
-      TODO(Lab 4): what actually happens. Freeze deploys? Page someone? Fall back to the
-      last known-good version? Accept it and revise the target? All are defensible;
-      silence is not.
+      The error budget is 0.5% of 30 days ≈ 3.6 hours of allowed 5xx / timeouts.
+      When it is spent, we freeze deploys to staging and production until the
+      budget recovers (or the incident is retroactively excused as planned
+      maintenance). We do NOT page for a spent budget alone — a page requires
+      an active incident. The freeze is enforced by removing the GitHub
+      Actions deploy secret, so no one can merge-and-ship without a human
+      restoring the secret. The incident owner writes a postmortem to
+      docs/postmortem-template.md before the freeze is lifted.
 
   - name: latency
-    target_p95_ms: 200         # TODO(Lab 4): must match the target you set in loadtest/k6.js
+    target_p95_ms: 500
     window: 7d
     measurement: "p95 of /predict, measured at the endpoint, not at the client"
     on_budget_exhausted: |
-      TODO(Lab 4)
+      The latency budget is 5% of 7 days ≈ 8.4 hours of requests above 500 ms.
+      When it is spent, we: (1) check whether the cause is cold start — if so,
+      raise min-replicas from 0 to 1 and re-measure; (2) if not cold start,
+      step the instance from 0.5 vCPU to 1.0 vCPU, which Lab 3 measured as
+      halving p95 (331 ms → 164 ms). Both changes cost money and are made
+      deliberately, not as a reflex. We do not lower the target — that would
+      defeat the point of an SLO.
 
   - name: freshness
     target_max_model_age_days: 30
     window: continuous
     measurement: "days since the production model version was trained"
     on_budget_exhausted: |
-      TODO(Lab 4): this one interacts with your retraining trigger in Lab 5. Keep them
-      consistent — an SLO demanding a 30-day-old model and a 90-day retrain schedule is
-      a contradiction you should notice here rather than in production.
+      This is not a spent-budget-then-act objective; it is a commit.
+      When the model reaches 30 days old, we run the retraining pipeline and
+      open a PR for the Model owner to review. If the retraining fails or the
+      new model fails its promotion gate, we escalate rather than let the
+      model silently age past the target. The Lab 5 retraining schedule must
+      fire at ≤ 30 days for this SLO to hold; if Lab 5 sets the schedule to 90
+      days, this target is a lie and one of them must change.
