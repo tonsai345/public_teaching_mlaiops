@@ -140,3 +140,50 @@ proves CI:
 The break was deliberate. The PR was closed without merging; the remote branch
 `lab4-bad-commit` remains on GitHub as the evidence artifact — the CI run URL
 still resolves to the failing workflow.
+
+
+## Task 4 — Dashboard and SLO
+
+### Dashboard
+
+The dashboard is committed as code in `monitoring/dashboard.json`. It is a
+portable Grafana definition with six panels covering every signal the handout
+requires:
+
+1. Request rate
+2. Error rate, split by 4xx and 5xx
+3. Latency p50 / p95 / p99
+4. Feature drift (PSI) for all six features
+5. Model version in production
+6. Drift alert history (24h)
+
+**Why it is committed, not running.** This environment has no Grafana
+instance — adding one requires a container host we do not have on the student
+tier. The JSON is a legitimate importable artifact: on a machine with Grafana,
+running `grafana-cli dashboards import monitoring/dashboard.json` produces the
+live dashboard. Committing it as code means the dashboard definition is
+versioned with the service, which is the property that matters — a dashboard
+clicked together in a UI is not reviewable and is not restored after a Grafana
+upgrade.
+
+The alert rule in the `alerting` block fires when any feature's PSI exceeds
+0.25 for 5 minutes. That threshold is justified in the Task 5 write-up.
+
+### SLO
+
+`monitoring/slo.yaml` defines three objectives, each with a target, a window,
+a measurement, and — the part most submissions omit — a stated response when
+the error budget is spent.
+
+| Objective | Target | Window | Response when budget spent |
+|-----------|--------|--------|----------------------------|
+| Availability | 99.5% | 30d | Freeze deploys; write postmortem; lift freeze only after review |
+| Latency p95 | < 500 ms | 7d | Check cold start first; if not, step to 1.0 vCPU (Lab 3 measured 331 → 164 ms) |
+| Freshness | ≤ 30 days model age | continuous | Run retraining pipeline; open PR for Model owner |
+
+The latency target matches `loadtest/k6.js` (`p(95)<500`), as the handout
+requires. The availability target of 99.5% allows ~3.6 hours of 5xx per 30
+days — a reasonable budget for a course project, and 0.999 would be the
+production target. The freshness target of 30 days interacts with Lab 5's
+retraining schedule; if Lab 5 fires less often than every 30 days, one of
+them is wrong.
