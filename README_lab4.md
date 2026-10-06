@@ -187,3 +187,70 @@ days — a reasonable budget for a course project, and 0.999 would be the
 production target. The freshness target of 30 days interacts with Lab 5's
 retraining schedule; if Lab 5 fires less often than every 30 days, one of
 them is wrong.
+
+
+## Task 5 — Drift detection on a schedule
+
+### What runs
+
+`.github/workflows/drift.yml` runs daily at 02:00 UTC (and can be triggered
+manually). It:
+
+1. Regenerates the training reference dataset
+2. Builds a "current" window — in production this would be the last 24 hours
+   of live input; in the course we synthesize it with a known injection so the
+   detector has something to detect
+3. Runs `monitoring/drift.py` for every feature, computing PSI and KS
+4. Emits each PSI score via `adapter.emit_metric()` to `reports/metrics.jsonl`
+5. If any feature's PSI exceeds 0.25, opens a GitHub issue in this repository
+   with the drift values and the retrain-vs-rollback decision tree
+6. Uploads `reports/drift.json` as a workflow artifact
+
+### Alert channel
+
+**GitHub Issues** in this repository. GitHub sends issue notifications to the
+author's email by default, so this is a channel the author will actually see.
+Slack or Line Notify would require a webhook secret; GitHub Issues requires
+none and is auditable — every alert has a permalink and a timestamp.
+
+### Threshold — and why
+
+**Alert threshold: PSI ≥ 0.25. Warning threshold: PSI ≥ 0.10.**
+
+The conventional PSI bands come from credit scoring (Siddiqi, 2006):
+
+| PSI | Conventional reading |
+|-----|---------------------|
+| < 0.10 | No significant change |
+| 0.10 – 0.25 | Moderate change, investigate |
+| ≥ 0.25 | Significant change, act |
+
+Those bands were calibrated for features with stable distributions and large
+volumes — credit bureau data. Our features are noisier: `temp_c` is
+`base_temp + 0.0016 * hours + Gaussian noise`, and both `base_temp` and the
+noise are random per row. The 0.10 threshold will fire on legitimate
+variation, so we use it as a **warning** level (logs a metric, does not page)
+and reserve the issue-opening **alert** at 0.25.
+
+**Why not tighter?** The drift detector is a screenshot of one window against
+the whole training set. A tighter threshold (e.g., 0.05) would alert on the
+inherent randomness of the generator, producing alert fatigue — the failure
+mode where the operator stops reading alerts.
+
+**Why not looser?** The injection in Task 6 shifts `temp_c` by 6 °C and
+produces PSI 0.38. A threshold of 0.50 would miss it. 0.25 is the smallest
+value that reliably separates "the world changed" from "the sample was small."
+
+**What the threshold does not cover.** PSI is a univariate statistic. It
+catches a shift in one feature but not a shift in the *relationship* between
+features and the target (concept drift). Task 6's decision tree handles this:
+if schema and null rate are unchanged and input distributions have not moved,
+but prediction quality fell, that is concept drift and PSI will not see it.
+The SLO's freshness objective (Task 4) is the backstop for that case.
+
+### Evidence
+
+- **Workflow:** `.github/workflows/drift.yml`
+- **First successful alert:** https://github.com/tonsai345/public_teaching_mlaiops/issues/2
+- **Run:** https://github.com/tonsai345/public_teaching_mlaiops/actions/runs/37508045971
+- **Metric output:** `reports/metrics.jsonl` (JSONL, one record per metric)
