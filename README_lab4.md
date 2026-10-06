@@ -68,3 +68,75 @@ developer after CI passes.
 A long-lived credential is worse than OIDC, but a repository secret satisfies
 the handout's wording ("repository secret store") — the constraint is real,
 not a shortcut.
+
+
+## Task 3 — Evidence that a bad commit is blocked
+
+### The deliberate break
+
+Branch `lab4-bad-commit` renamed `temp_c` to `temp_celsius` in
+`scripts/make_dataset.py`. This is a realistic upstream-producer change: a
+pipeline refactor that renames a column without coordinating with downstream
+consumers. Every model trained on the renamed data would silently drop `temp_c`
+and score on 5 features instead of 6.
+
+### The pull request
+
+- **PR:** `<PR_URL>` (closed without merging)
+- **CI run:** `<CI_RUN_URL>`
+
+### The failing step and test
+
+**Step that failed:** `Data contract tests`
+
+**Test that caught it:** `tests/test_data.py::test_schema_columns_present_and_typed`
+
+**Error message from CI:**
+
+FAILED tests/test_data.py::test_schema_columns_present_and_typed
+AssertionError: missing columns: ['temp_c']
+assert not {'temp_c'}
+
+
+**Cascade:** Two additional tests failed as consequences:
+- `test_no_nulls_in_required_columns` → `KeyError: "['temp_c'] not in index"`
+- `test_features_within_plausible_ranges` → `KeyError: 'temp_c'`
+
+The cascade is itself information: the schema test is the *diagnostic* one, and
+the others fail because the schema check they assume passed did not.
+
+**Result:** `3 failed, 7 passed in 0.89s`
+
+### Earlier failures the same CI caught
+
+The pipeline runs cheapest checks first, and it did so here. Two pre-existing
+issues on `main` were also caught during this exercise and fixed:
+
+1. **Lint:** `F841 Local variable 'account_name' is assigned to but never used`
+   in `scripts/remote_entrypoint.py` — removed.
+2. **Portability audit:** `service/app.py` imported `azure.storage.blob`
+   directly, which the portability seam forbids. Moved the Blob download into
+   `cloudlayer/azure.py` (via `adapter.download()`), so no provider SDK is
+   imported outside `cloudlayer/`.
+
+Both were introduced by Lab 3 work and neither was caught locally. Lab 4's CI
+was the first mechanism to surface them.
+
+### What this proves
+
+A green pipeline proves nothing about whether tests work. This failing run
+proves CI:
+
+1. **Runs on pull requests** — triggered by the PR, not by push
+2. **Fails fast** — the data contract step runs before the image build, so a
+   schema mistake fails in ~50 seconds rather than after a full Docker build
+3. **Names the failure** — the test ID and the missing column appear directly
+   in the CI log
+4. **Catches pre-existing issues** — lint and portability both failed before
+   we even got to the test we wanted to trigger
+
+### Why the PR was not merged
+
+The break was deliberate. The PR was closed without merging; the remote branch
+`lab4-bad-commit` remains on GitHub as the evidence artifact — the CI run URL
+still resolves to the failing workflow.
