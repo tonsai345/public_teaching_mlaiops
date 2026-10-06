@@ -1,0 +1,99 @@
+# ITCS355 Lab 4 — scheduled drift detection.
+#
+# Runs on a cron schedule, compares the current input stream against the
+# training reference, emits PSI metrics, and opens a GitHub issue when any
+# feature exceeds the alert threshold.
+#
+# The alert channel is a GitHub issue, which is a real channel the author
+# will see (GitHub notifications go to email by default). Slack/Line would
+# need webhook secrets; a GitHub issue needs none and is auditable.
+
+name: Drift
+
+on:
+  schedule:
+    # 02:00 UTC every day. Adjust to a time you actually read alerts.
+    - cron: "0 2 * * *"
+  workflow_dispatch:   # allow manual trigger for testing
+
+permissions:
+  contents: read
+  issues: write        # required to open the alert issue
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate reference dataset
+        run: python scripts/make_dataset.py
+
+      - name: Fetch current window
+        # In production this would pull the last N hours of live requests.
+        # For the course, we synthesize a current window by injecting a known
+        # drift, so the detector has something to detect. The injection
+        # magnitude is what a real pipeline break would look like.
+        run: python scripts/inject_drift.py --feature temp_c --mode shift --magnitude 6
+
+      - name: Run drift detector
+        id: drift
+        continue-on-error: true
+        run: python -m monitoring.drift --current data/current.csv --emit
+
+      - name: Open alert issue if drift breached
+        if: steps.drift.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('reports/drift.json', 'utf8');
+            const drift = JSON.parse(raw);
+            const breached = drift.filter(d => d.psi >= 0.25);
+            if (breached.length === 0) return;
+
+            const lines = breached.map(d =>
+              `- **${d.feature}**: PSI ${d.psi} (KS ${d.ks_statistic}), ref_mean=${d.ref_mean}, cur_mean=${d.cur_mean}`
+            ).join('\n');
+
+            const body = [
+              '## Drift alert',
+              '',
+              'The scheduled drift detector found features above the alert threshold (PSI >= 0.25).',
+              '',
+              lines,
+              '',
+              '### Before you retrain',
+              '',
+              '1. Did the schema or null rate change? → upstream pipeline broke. Do **not** retrain; fix the producer and backfill.',
+              '2. Did the input distribution move? → is the new distribution legitimate and persistent? If yes, retrain on recent data. If it is a spike or a bad batch, no action.',
+              '3. Did prediction quality fall without an input change? → concept drift. Retrain and revisit features.',
+              '4. None of the above? → not a model problem. Check serving and infrastructure.',
+              '',
+              `Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Drift alert: ${breached.map(d => d.feature).join(', ')} above PSI 0.25`,
+              body: body,
+              labels: ['drift', 'lab4'],
+            });
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: reports/drift.json
