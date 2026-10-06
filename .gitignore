@@ -25,3 +25,5 @@ __pycache__/
 .ruff_cache/
 *.bak
 reports/_reload/
+data/current.csv
+reports/metrics.jsonl

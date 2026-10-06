@@ -242,6 +242,36 @@ class AzureAdapter(CloudAdapter):
         registered = ml_client.models.create_or_update(model)
         return str(registered.version)
 
+    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
+        """Emit a metric to a local JSONL file.
+
+        Azure Monitor requires credentials and a Data Collection Rule, neither
+        of which are available on the student tier. Instead, metrics are written
+        to reports/metrics.jsonl — one JSON object per line — where a Grafana
+        file datasource can read them, and where the drift detector can read
+        back the history to decide when to alert.
+
+        This is a real choice, not a fallback. A JSONL file is versionable, easy
+        to grep, and has no vendor lock-in. The trade-off is no retention
+        policy and no built-in query language.
+        """
+        import json as _json
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        path = Path("reports/metrics.jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "name": name,
+            "value": float(value),
+            "unit": unit,
+        }
+
+        with open(path, "a") as f:
+            f.write(_json.dumps(record) + "\n")
+
     # --- Lab 3 ---------------------------------------------------------------
     def deploy(self, model_ref: str, endpoint: str, instance: str) -> str:
         """Deploy the serving image to Azure Container Apps.
