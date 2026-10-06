@@ -82,8 +82,8 @@ and score on 5 features instead of 6.
 
 ### The pull request
 
-- **PR:** `<PR_URL>` (closed without merging)
-- **CI run:** `<CI_RUN_URL>`
+- **PR:** `https://github.com/tonsai345/public_teaching_mlaiops/pull/1` (closed without merging)
+- **CI run:** `https://github.com/tonsai345/public_teaching_mlaiops/actions/runs/37501859824`
 
 ### The failing step and test
 
