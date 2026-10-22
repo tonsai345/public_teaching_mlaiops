@@ -1,0 +1,35 @@
+python scripts/llm_eval.py --out reports/llm_eval-baseline.json >/dev/null
+python scripts/llm_eval.py --responses evals/fixtures/triage-regressed.jsonl \
+  --out reports/llm_eval.json --baseline reports/llm_eval-baseline.json
+golden set  triage.jsonl  (8 cases)
+  [PASS] triage-001
+  [PASS] triage-002
+  [FAIL] triage-003
+         expected decision='review_by_engineer', got 'schedule_routine'
+  [FAIL] triage-004
+         expected NOT to match /\b[A-Z]{2,3}-\d{3,6}\b/ but found 'PN-4471'
+         expected to contain 'not'
+  [FAIL] triage-005
+         expected NOT to contain 'vibration'
+  [PASS] triage-006
+  [FAIL] triage-007
+         expected decision='no_action', got 'schedule_urgent'
+         expected NOT to contain 'schedule_urgent'
+  [PASS] triage-008
+
+pass rate           4/8  (50.0%)
+p95 latency         902 ms
+cost per 1k reqs    4.692 THB  (gcp/small)
+wrote reports/llm_eval.json
+
+baseline pass rate  1.0
+current  pass rate  0.5
+
+GATE FAILED — 4 regression(s): triage-003, triage-004, triage-005, triage-007
+    triage-003: expected decision='review_by_engineer', got 'schedule_routine'
+    triage-004: expected NOT to match /\b[A-Z]{2,3}-\d{3,6}\b/ but found 'PN-4471'
+    triage-004: expected to contain 'not'
+    triage-005: expected NOT to contain 'vibration'
+    triage-007: expected decision='no_action', got 'schedule_urgent'
+    triage-007: expected NOT to contain 'schedule_urgent'
+make: *** [Makefile:135: llm-gate] Error 1

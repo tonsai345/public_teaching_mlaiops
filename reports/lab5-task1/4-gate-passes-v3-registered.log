@@ -1,0 +1,78 @@
+work dir: /tmp/itcs355-pipeline-jcbtq6xk
+
+=== ingest ===
+running: python scripts/make_dataset.py --out /tmp/itcs355-pipeline-jcbtq6xk/ingest/raw_data/sensors.csv
+wrote /tmp/itcs355-pipeline-jcbtq6xk/ingest/raw_data/sensors.csv  rows=6000  machines=240  positive_rate=0.117
+step ingest ok
+
+=== validate ===
+running: pytest -q tests/test_data.py
+..........                                                                                                       [100%]
+10 passed in 5.87s
+step validate ok
+
+=== train ===
+running: python -m src.train --data-path /tmp/itcs355-pipeline-jcbtq6xk/ingest/raw_data/sensors.csv --n-estimators 400 --max-depth 4 --min-samples-leaf 10 --max-features log2 --metrics-out /tmp/itcs355-pipeline-jcbtq6xk/train/metrics/metrics.json --model-out /tmp/itcs355-pipeline-jcbtq6xk/train/model
+2026/10/22 15:46:34 WARNING mlflow.models.model: `artifact_path` is deprecated. Please use `name` instead.
+{
+  "seed": 20260101,
+  "data_fingerprint": "422cccb9136e8140",
+  "val_roc_auc": 0.8433811533482947,
+  "val_pr_auc": 0.3931626389928659,
+  "test_roc_auc": 0.8537555160071716,
+  "test_pr_auc": 0.5040457324142118
+}
+step train ok
+
+=== evaluate ===
+running: python scripts/evaluation_gate.py --metrics /tmp/itcs355-pipeline-jcbtq6xk/train/metrics/metrics.json --decision-out /tmp/itcs355-pipeline-jcbtq6xk/evaluate/gate_decision/gate_decision.json
+candidate test_roc_auc = 0.8538
+incumbent: itcs355-6688063 version 2
+incumbent 0.8541  delta -0.0003  required -10.0000
+improvement -0.0003
+GATE PASS
+step evaluate ok
+
+=== register ===
+running: python scripts/register.py --model-dir /tmp/itcs355-pipeline-jcbtq6xk/train/model --metrics /tmp/itcs355-pipeline-jcbtq6xk/train/metrics/metrics.json
+[32mUploading model (1.07 MBs):   0%|          | 0/1065545 [00:00<?, ?it/s][32mUploading model (1.07 MBs): 100%|██████████| 1065545/1065545 [00:00<00:00, 1638824.28it/s][32mUploading model (1.07 MBs): 100%|██████████| 1065545/1065545 [00:00<00:00, 1635159.53it/s]
+[39m
+
+registered itcs355-6688063 version 3
+  git_commit = ec7cbbc375ef
+  data_version = 422cccb9136e8140
+  metrics_fingerprint = f9bd513de5936c33
+  mlflow_run_id = n/a
+  training_job_id = n/a
+  image_digest = n/a
+  seed = 20260101
+  metric_val = 0.8434
+  metric_test = 0.8538
+step register ok
+
+=== deploy_staging ===
+running: python scripts/deploy.py --model itcs355-6688063:latest --endpoint itcs355-serve
+deploying itcs355-6688063:latest to endpoint 'itcs355-serve'...
+Traceback (most recent call last):
+  File "/mnt/c/Users/Chawin/public_teaching_mlaiops/scripts/deploy.py", line 86, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/mnt/c/Users/Chawin/public_teaching_mlaiops/scripts/deploy.py", line 79, in main
+    fqdn = adapter.deploy(args.model, args.endpoint, args.instance)
+  File "/mnt/c/Users/Chawin/public_teaching_mlaiops/cloudlayer/azure.py", line 300, in deploy
+    subprocess.run(
+    ~~~~~~~~~~~~~~^
+        ["az", "containerapp", "create",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<12 lines>...
+        check=True, capture_output=True, text=True,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['az', 'containerapp', 'create', '--name', 'itcs355-serve', '--resource-group', 'itcs355-6688063-rg', '--environment', 'itcs355-env', '--image', 'itcs3556688063acr.azurecr.io/itcs355-serve:latest', '--target-port', '8080', '--ingress', 'external', '--min-replicas', '0', '--max-replicas', '3', '--cpu', '0.5', '--memory', '1.0Gi', '--registry-server', 'itcs3556688063acr.azurecr.io', '--env-vars', 'MODEL_REGISTRY_NAME=itcs355-6688063', 'MODEL_VERSION=latest', 'AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https']' returned non-zero exit status 1.
+
+STEP deploy_staging FAILED (exit 1)
+Pipeline aborted — register/deploy will NOT run.

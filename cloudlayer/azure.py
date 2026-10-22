@@ -367,6 +367,54 @@ class AzureAdapter(CloudAdapter):
             check=True, capture_output=True, text=True,
         )
 
+    # --- Lab 5 ---------------------------------------------------------------
+    def teardown(self, tags: dict[str, str]) -> list[str]:
+        """Delete resources tagged lab=N that bill by the hour.
+
+        Deliberately does NOT delete:
+          - the Azure ML workspace (contains registered models)
+          - the storage account (contains the datasets)
+          - the ACR (contains the images)
+          - the three managed identities (documented in Task 2)
+
+        Those are evidence for grading and are billed monthly, not hourly.
+        """
+        tag_arg = ",".join(f"{k}={v}" for k, v in tags.items() if k in ("lab", "course"))
+        print(f"listing resources with tags: {tag_arg}")
+
+        listing = subprocess.run(
+            ["az", "resource", "list", "--tag", tag_arg,
+             "--query", "[].{name:name, type:type, rg:resourceGroup, id:id}",
+             "-o", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        import json as _json
+        resources = _json.loads(listing.stdout or "[]")
+
+        # Only delete hourly-billed resources
+        deletable_prefixes = (
+            "Microsoft.MachineLearningServices/workspaces/computes",
+            "Microsoft.App/containerApps",
+            "Microsoft.App/managedEnvironments",
+            "Microsoft.Insights/components",
+            "Microsoft.OperationalInsights/workspaces",
+        )
+
+        deleted = []
+        for r in resources:
+            rtype = r["type"]
+            if not any(rtype.startswith(pfx) or pfx in rtype for pfx in deletable_prefixes):
+                print(f"  skip {r['name']} ({rtype}) — not hourly-billed")
+                continue
+            print(f"  deleting {r['name']} ({rtype})...")
+            subprocess.run(
+                ["az", "resource", "delete", "--ids", r["id"]],
+                capture_output=True, text=True,
+            )
+            deleted.append(f"deleted: {r['name']} ({rtype})")
+
+        return deleted
+
     # submit_training / register_model  -> Lab 2 (Azure ML command job + model registry)
     # deploy / invoke                   -> Lab 3. On Azure for Students, deploy to
     #                                      Container Apps, NOT an Azure ML managed

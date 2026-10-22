@@ -41,6 +41,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--run-name", default=None)
     p.add_argument("--metrics-out", type=Path, default=None,
                    help="Write final metrics as JSON. Used by `make verify`.")
+    p.add_argument("--data-path", type=Path, default=None,
+                   help="Path to raw CSV. Defaults to cfg.raw_path (local).")
+    p.add_argument("--model-out", type=Path, default=None,
+                   help="Directory to write model.joblib to. Used by Lab 5's pipeline.")
     return p.parse_args()
 
 
@@ -49,8 +53,9 @@ def main() -> None:
     cfg = config.load(strict=False)
     seed = seeds.set_all(args.seed)
 
-    df = data.load_raw(cfg.raw_path)
-    fingerprint = data.data_fingerprint(cfg.raw_path)
+    raw_path = args.data_path or cfg.raw_path
+    df = data.load_raw(raw_path)
+    fingerprint = data.data_fingerprint(raw_path)
     train_df, val_df, test_df = data.split(df, seed=seed)
 
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
@@ -114,6 +119,11 @@ def main() -> None:
             args.metrics_out = Path(args.metrics_out)
             args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
             args.metrics_out.write_text(json.dumps(out_metrics, indent=2))
+        if args.model_out:
+            args.model_out = Path(args.model_out)
+            args.model_out.mkdir(parents=True, exist_ok=True)
+            import joblib
+            joblib.dump(model, args.model_out / "model.joblib")
         print(json.dumps(out_metrics, indent=2))
 
 

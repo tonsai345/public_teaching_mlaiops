@@ -1,0 +1,18 @@
+golden set  triage-v2.jsonl  (12 cases)
+  [PASS] triage-101
+  [PASS] triage-102
+  [PASS] triage-103
+  [PASS] triage-104
+  [PASS] triage-105
+  [PASS] triage-106
+  [PASS] triage-107
+  [PASS] triage-108
+  [PASS] triage-109
+  [PASS] triage-110
+  [PASS] triage-111
+  [PASS] triage-112
+
+pass rate           12/12  (100.0%)
+p95 latency         810 ms
+cost per 1k reqs    5.1 THB  (gcp/small)
+wrote reports/llm_eval-triage-v2-baseline.json

@@ -1,0 +1,15 @@
+python scripts/llm_eval.py --out reports/llm_eval-baseline.json
+golden set  triage.jsonl  (8 cases)
+  [PASS] triage-001
+  [PASS] triage-002
+  [PASS] triage-003
+  [PASS] triage-004
+  [PASS] triage-005
+  [PASS] triage-006
+  [PASS] triage-007
+  [PASS] triage-008
+
+pass rate           8/8  (100.0%)
+p95 latency         878 ms
+cost per 1k reqs    4.794 THB  (gcp/small)
+wrote reports/llm_eval-baseline.json

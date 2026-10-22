@@ -1,0 +1,15 @@
+{
+  "tags": {
+    "data_version": "422cccb9136e8140",
+    "git_commit": "ec7cbbc375ef",
+    "image_digest": "n/a",
+    "metric_test": "0.8538",
+    "metric_val": "0.8434",
+    "metrics_fingerprint": "f9bd513de5936c33",
+    "mlflow_run_id": "n/a",
+    "seed": "20260101",
+    "stage": "Staging",
+    "training_job_id": "n/a"
+  },
+  "version": "3"
+}

@@ -1,0 +1,36 @@
+work dir: /tmp/itcs355-pipeline-jxdoffjp
+
+=== ingest ===
+running: python scripts/make_dataset.py --out /tmp/itcs355-pipeline-jxdoffjp/ingest/raw_data/sensors.csv
+wrote /tmp/itcs355-pipeline-jxdoffjp/ingest/raw_data/sensors.csv  rows=6000  machines=240  positive_rate=0.117
+step ingest ok
+
+=== validate ===
+running: pytest -q tests/test_data.py
+..........                                                                                                       [100%]
+10 passed in 6.43s
+step validate ok
+
+=== train ===
+running: python -m src.train --data-path /tmp/itcs355-pipeline-jxdoffjp/ingest/raw_data/sensors.csv --n-estimators 400 --max-depth 4 --min-samples-leaf 10 --max-features log2 --metrics-out /tmp/itcs355-pipeline-jxdoffjp/train/metrics/metrics.json --model-out /tmp/itcs355-pipeline-jxdoffjp/train/model
+2026/10/22 15:42:53 WARNING mlflow.models.model: `artifact_path` is deprecated. Please use `name` instead.
+{
+  "seed": 20260101,
+  "data_fingerprint": "422cccb9136e8140",
+  "val_roc_auc": 0.8433811533482947,
+  "val_pr_auc": 0.3931626389928659,
+  "test_roc_auc": 0.8537555160071716,
+  "test_pr_auc": 0.5040457324142118
+}
+step train ok
+
+=== evaluate ===
+running: python scripts/evaluation_gate.py --metrics /tmp/itcs355-pipeline-jxdoffjp/train/metrics/metrics.json --decision-out /tmp/itcs355-pipeline-jxdoffjp/evaluate/gate_decision/gate_decision.json
+candidate test_roc_auc = 0.8538
+incumbent: itcs355-6688063 version 2
+incumbent 0.8541  delta -0.0003  required +0.0020
+improvement -0.0003 within noise
+GATE FAIL
+
+STEP evaluate FAILED (exit 1)
+Pipeline aborted — register/deploy will NOT run.

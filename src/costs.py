@@ -25,6 +25,7 @@ PRICE_TABLE: dict[str, dict[str, float]] = {
         # USD list price x 36 THB/USD, checked 2026-09-21 — verify for your own region.
         "Standard_B1s": 0.37,             # 1 vCPU, 1 GiB  — $0.0104/hr
         "Standard_B2s": 1.50,             # 2 vCPU, 4 GiB  — $0.0416/hr
+        "Standard_DS2_V2": 5.26,          # 2 vCPU, 7 GiB — cheapest AML-supported size under student cap; verify rate for koreacentral
         # The three below are 4 vCPU each and DO NOT FIT a student subscription. An
         # Azure ML managed online endpoint needs ceil(1.2 x instances) x cores, so one
         # Standard_DS3_v2 instance asks for 8 vCPU against a cap of 3. The GPU SKU is

@@ -114,9 +114,18 @@ drift: ## Score drift against the reference window
 	python -m monitoring.drift --current data/current.csv
 
 # --- Lab 5 -------------------------------------------------------------------
-pipeline: ## Compile pipeline/pipeline.yaml for your provider
+EST ?= 12
+ACT ?=
+RPS ?=
+INSTANCE ?= Standard_DS2_V2
+SECOND ?= gcp
+
+pipeline: ## Run the DAG locally (Azure ML DSL rejected under student quota)
+	python scripts/run_pipeline_local.py
+
+pipeline-compile: ## Compile pipeline/pipeline.yaml without submitting (sanity check)
 	python -c "from cloudlayer.pipelines import compile_for; from src import config; \
-	compile_for(config.load().provider)"
+	print(compile_for(config.load().provider))"
 
 llm-eval: ## Run the LLM golden set against recorded responses (offline, free)
 	python scripts/llm_eval.py --out reports/llm_eval-baseline.json
@@ -127,7 +136,16 @@ llm-gate: ## Prove the gate fails on a degraded set — expected to exit non-zer
 	  --out reports/llm_eval.json --baseline reports/llm_eval-baseline.json
 
 cost: ## Build the cost report
-	python scripts/cost_report.py --estimate $(EST) --actual $(ACT) --rps $(RPS) --instance $(INSTANCE)
+	python scripts/cost_report.py --estimate $(EST) --actual $(or $(ACT),0) \
+	  --rps $(or $(RPS),1) --instance $(INSTANCE)
 
 swap-check: ## Prove the portability seam against a second provider
 	python scripts/portability_swap_check.py --second-provider $(SECOND)
+
+minio-up: ## Start MinIO locally for `make swap-check SECOND=gcp`
+	docker run -d --name itcs355-minio -p 9000:9000 -p 9001:9001 \
+	  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+	  minio/minio server /data --console-address ":9001"
+
+minio-down: ## Stop the local MinIO
+	-docker rm -f itcs355-minio

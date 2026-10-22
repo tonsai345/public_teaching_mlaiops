@@ -1,0 +1,31 @@
+# Task 6 teardown — day 1 (2026-10-22)
+
+## Adapter teardown (scripted)
+`python scripts/teardown_verify.py --lab 5`
+→ PASS  nothing found under tags course=itcs355,lab=5
+
+Why that PASS is misleading: workspace-created resources were never tagged lab=5,
+so the script finds nothing. This is the "silent failure" the spec warns about.
+
+## Manual cleanup performed
+- az ml compute delete --name cpu-cluster (DS2_V2, ~5.26 THB/hr idle)
+- az containerapp env delete --name itcs355-env  → "successfully deleted"
+- az containerapp env delete --name itcs355-env-v2 → "successfully deleted"
+
+## Verification (reports/lab5-task6-verify-day1.txt)
+- ml compute list → empty
+- containerapp list → empty
+- containerapp env list → empty
+
+## Retained (evidence for grading, billed monthly not hourly)
+- workspace itcs355-workspace (models v2, v3)
+- ACR itcs3556688063acr (training + serving images)
+- storage itcs3556688063sa (datasets + artifacts)
+- managed identities itcs355-{train,serve,ci}-mi (Task 2)
+
+## Day-2 re-check
+Scheduled: 2026-10-23. Re-run:
+  az ml compute list --workspace-name itcs355-workspace \
+    --resource-group itcs355-6688063-rg -o table
+  az containerapp list --resource-group itcs355-6688063-rg -o table
+  az containerapp env list --resource-group itcs355-6688063-rg -o table

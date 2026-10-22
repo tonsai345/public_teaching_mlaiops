@@ -19,3 +19,4 @@ azure-storage-blob
 azure-identity
 azureml-mlflow
 azureml-mlflow
+azure-ai-ml

@@ -1,0 +1,30 @@
+# Task 2 — break test: remove one permission, observe what breaks
+
+Role removed: Storage Blob Data Contributor
+Scope: /subscriptions/ce0c4612-4e67-4c7b-b2e6-0a2198ad93b3/resourceGroups/itcs355-6688063-rg/providers/Microsoft.Storage/storageAccounts/itcs3556688063sa
+Identity: signed-in user (1a7ff47e-d9f9-458b-b680-56d4780bc979)
+Method: az role assignment delete --ids <full-role-assignment-id>
+
+## Result
+
+BEFORE (role present):
+RESULT BEFORE: UPLOAD OK
+
+AFTER (role removed, 120s propagation):
+RESULT AFTER: BROKEN — HttpResponseError: This request is not authorized to perform
+this operation using this permission.
+ErrorCode: AuthorizationPermissionMismatch
+RequestId: f6c75495-301e-000e-6608-62639f000000
+
+## Restored
+az role assignment create --assignee-object-id $ME --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" --scope $STORAGE_ID
+→ new assignment id 0f405ebb-7544-46c4-81a3-a7c50584b920
+
+## Conclusion
+The permission is load-bearing. Without Storage Blob Data Contributor, blob writes
+fail with HTTP 403 AuthorizationPermissionMismatch. The same failure would occur
+inside the pipeline if the training identity lost its Storage Blob Data Reader role —
+ingest would fail before training could start. This confirms that the training identity
+needs storage data-plane access and the serving identity (scoped to AcrPull only) does
+not.

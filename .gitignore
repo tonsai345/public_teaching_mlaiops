@@ -27,3 +27,6 @@ __pycache__/
 reports/_reload/
 data/current.csv
 reports/metrics.jsonl
+reports/gcp-local-blob/
+*.save
+*.failed-gate

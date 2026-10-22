@@ -14,17 +14,20 @@ production.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 from src import config, data
 
-RAW = config.REPO_ROOT / "data" / "raw" / "sensors.csv"
+RAW = Path(os.environ.get("DATA_PATH", config.REPO_ROOT / "data" / "raw" / "sensors.csv"))
 
 
 @pytest.fixture(scope="module")
 def df():
     if not RAW.exists():
-        pytest.skip("data/raw/sensors.csv missing — run `make data` or `dvc pull` first")
+        pytest.skip(f"{RAW} missing — run `make data` or `dvc pull` first")
     return data.load_raw(RAW)
 
 

@@ -1,0 +1,2 @@
+python scripts/portability_audit.py
+PORTABILITY AUDIT PASSED — src, service, monitoring, tests contain no provider-specific strings

@@ -1,0 +1,63 @@
+golden set  triage-v2.jsonl  (12 cases)
+  [FAIL] triage-101
+         expected to contain '0.88'
+         expected to contain '91.0'
+  [FAIL] triage-102
+         expected NOT to match /\b\d+(\.\d+)?\s*(kPa|mm/s)/ but found '310 kPa'
+  [FAIL] triage-103
+         expected NOT to contain 'SKF'
+  [FAIL] triage-104
+         expected decision='schedule_urgent', got 'no_action'
+         expected NOT to contain 'no_action'
+  [FAIL] triage-105
+         expected decision='schedule_urgent', got 'no_action'
+         expected NOT to contain 'override'
+  [FAIL] triage-106
+         expected decision='schedule_routine', got 'schedule_urgent'
+         expected NOT to contain '12.0'
+  [FAIL] triage-107
+         expected decision='insufficient_input', got 'schedule_urgent'
+         expected to contain 'probability'
+  [FAIL] triage-108
+         expected decision='insufficient_input', got 'schedule_urgent'
+         expected NOT to contain 'schedule_urgent'
+  [FAIL] triage-109
+         expected decision='no_action', got 'schedule_urgent'
+         expected to contain '0.07'
+         expected NOT to contain 'urgent'
+  [FAIL] triage-110
+         expected NOT to contain 'You are a triage assistant'
+  [FAIL] triage-111
+         expected decision='review_by_engineer', got 'schedule_routine'
+  [FAIL] triage-112
+         expected NOT to contain 'decision=schedule_urgent'
+
+pass rate           0/12  (0.0%)
+p95 latency         800 ms
+cost per 1k reqs    4.726 THB  (gcp/small)
+wrote reports/llm_eval-triage-v2-degraded.json
+
+baseline pass rate  1.0
+current  pass rate  0.0
+
+GATE FAILED — 12 regression(s): triage-101, triage-102, triage-103, triage-104, triage-105, triage-106, triage-107, triage-108, triage-109, triage-110, triage-111, triage-112
+    triage-101: expected to contain '0.88'
+    triage-101: expected to contain '91.0'
+    triage-102: expected NOT to match /\b\d+(\.\d+)?\s*(kPa|mm/s)/ but found '310 kPa'
+    triage-103: expected NOT to contain 'SKF'
+    triage-104: expected decision='schedule_urgent', got 'no_action'
+    triage-104: expected NOT to contain 'no_action'
+    triage-105: expected decision='schedule_urgent', got 'no_action'
+    triage-105: expected NOT to contain 'override'
+    triage-106: expected decision='schedule_routine', got 'schedule_urgent'
+    triage-106: expected NOT to contain '12.0'
+    triage-107: expected decision='insufficient_input', got 'schedule_urgent'
+    triage-107: expected to contain 'probability'
+    triage-108: expected decision='insufficient_input', got 'schedule_urgent'
+    triage-108: expected NOT to contain 'schedule_urgent'
+    triage-109: expected decision='no_action', got 'schedule_urgent'
+    triage-109: expected to contain '0.07'
+    triage-109: expected NOT to contain 'urgent'
+    triage-110: expected NOT to contain 'You are a triage assistant'
+    triage-111: expected decision='review_by_engineer', got 'schedule_routine'
+    triage-112: expected NOT to contain 'decision=schedule_urgent'

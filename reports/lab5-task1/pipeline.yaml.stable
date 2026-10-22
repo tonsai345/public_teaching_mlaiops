@@ -1,0 +1,60 @@
+# Lab 5 — pipeline as a neutral DAG.
+
+name: itcs355-training-pipeline
+schedule: "0 2 * * 0"          # TODO(Lab 5): justify this in your README, or change it
+
+steps:
+  - name: ingest
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["python", "scripts/make_dataset.py", "--out", "${{outputs.raw_data}}/sensors.csv"]
+    outputs: [raw_data]
+
+  - name: validate
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["pytest", "-q", "tests/test_data.py"]
+    depends_on: [ingest]
+    inputs: [raw_data]
+    on_failure: abort
+
+  - name: train
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["python", "-m", "src.train", "--data-path", "${{inputs.raw_data}}/sensors.csv",
+              "--n-estimators", "400", "--max-depth", "4",
+              "--min-samples-leaf", "10", "--max-features", "log2",
+              "--metrics-out", "${{outputs.metrics}}/metrics.json",
+              "--model-out", "${{outputs.model}}"]
+    depends_on: [validate]
+    inputs: [raw_data]
+    instance: "${TRAIN_INSTANCE}"
+    spot: true
+    outputs: [model, metrics]
+
+  - name: evaluate
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["python", "scripts/evaluation_gate.py",
+              "--metrics", "${{inputs.metrics}}/metrics.json",
+              "--decision-out", "${{outputs.gate_decision}}/gate_decision.json"]
+    depends_on: [train]
+    inputs: [metrics]
+    outputs: [gate_decision]
+
+  - name: register
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["python", "scripts/register.py",
+              "--model-dir", "${{inputs.model}}",
+              "--metrics", "${{inputs.metrics}}/metrics.json"]
+    depends_on: [evaluate]
+    inputs: [model, metrics]
+    condition: "gate_decision == 'pass'"
+
+  - name: deploy_staging
+    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
+    command: ["python", "scripts/deploy.py",
+              "--model", "${MODEL_REGISTRY_NAME}:latest",
+              "--endpoint", "itcs355-serve"]
+    depends_on: [register]
+
+tags:
+  course: itcs355
+  student: "${PROJECT_ID}"
+  lab: "5"
